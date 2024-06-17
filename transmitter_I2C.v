@@ -24,17 +24,17 @@ module transmitter_I2C(
     // Outputs
     SCL,          // Salida del reoj para el I2C
     SDA_OUT,      // Envía bit por bit info al receptor
-    SDA_OU,       // Habilita/Deshabilita quien tiene el control en la transaccion 
+    SDA_OE,       // Habilita/Deshabilita quien tiene el control en la transaccion 
     RD_DATA       // Muestrar los 16 bits recibidos desde el receptor [15:0]
     ); 
 
     // Declaración de entradas (inputs)
-    input clk, rst, RNW, START_STB, SDA_IN;
+    input clk, rst, RNW, START_STB, SDA_IN, SDA_IN_ACK;
     input [6:0] I2C_ADDR;
     input [15:0] WR_DATA; 
 
     // Declaración de salidas (outputs)
-    output reg SDA_OUT, SDA_OU; 
+    output reg SDA_OUT, SDA_OE; 
     reg nx_SDA_OUT, nx_SDA_OE;
     output reg SCL;
     output reg [15:0] RD_DATA; 
@@ -132,16 +132,31 @@ module transmitter_I2C(
                 if (SCL && negedge_SDA_out)begin // Si se cumplen las condiciones de inicio
                     SCL = div_freq[DIV_FREQ-1];  // Inicia  oscilación de SCL
                     SDA_OUT = 0;                 // Baja para iniciar a enviar el primer byte
-                    SDA_OU = 1;                  // Activa el Output Enable
-                    if (posedge_SCL && count_bit_each < 9) begin
+                    SDA_OE = 1;                  // Activa el Output Enable
+                    if (posedge_SCL && count_bit_total < 9) begin // Para el byte de Adress+RNW;
                         nx_count_bit_each = count_bit_each +1;
                         nx_count_bit_total = count_bit_total+1;
                         nx_SDA_OUT = inter_data_out[7-count_bit_each]; // Va a ir enviando bit por bit desde el 0 hasta el 7
                     end
-
-                    else if ()
-                    //else if (posedge_SCL )
-                
+                    else if (count_bit_total >= 8 && count_bit_total <17) begin // Para el primer byte de WR_DATA
+                        nx_inter_data_out = WR_DATA[15:8]; // Carga el primer byte de WR_DATA
+                        nx_count_bit_each = 0;             // reinicia el contador de bits a cero
+                        if (posedge_SCL && SDA_IN_ACK) begin 
+                            nx_count_bit_each = count_bit_each +1;
+                            nx_count_bit_total = count_bit_total+1;
+                            nx_SDA_OUT = inter_data_out[7-count_bit_each];
+                        end;
+                    end
+                    else if (count_bit_total >= 16 && count_bit_total <25)begin // Para el segundo byte de WR_DATA
+                        nx_inter_data_out = WR_DATA[7:0];  // Carga el segundo byte de WR_DATA
+                        nx_count_bit_each = 0;             // reinicia el contador de bits a cero
+                        if (posedge_SCL && SDA_IN) begin 
+                            nx_count_bit_each = count_bit_each +1;
+                            nx_count_bit_total = count_bit_total+1;
+                            nx_SDA_OUT = inter_data_out[7-count_bit_each];
+                        end;
+                    end
+                    else if (count_bit_total==24) nx_state = FINISH;
                 end
                  
             end
