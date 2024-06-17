@@ -19,7 +19,8 @@ module transmitter_I2C(
     I2C_ADDR,     // Dirección del receptor [6:0]
     WR_DATA,      // Recibe los bits que se desean enviar [15:0]
     START_STB,    // Indica que se desea iniciar una transaccion 
-    SDA_IN,       // Recive bit por bit respuesta del receptor
+    SDA_IN,       // Recibe bit por bit respuesta del receptor
+    SDA_IN_ACK,   // Recibe la señal ACK
 
     // Outputs
     SCL,          // Salida del reoj para el I2C
