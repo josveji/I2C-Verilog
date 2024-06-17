@@ -114,8 +114,9 @@ module transmitter_I2C(
         case(state)
 
             IDLE: begin 
-                SDA_OUT = 1;                    // Inicia en 1 para luego generar condiciones de inicio
+                nx_SDA_OUT = 1;                    // Inicia en 1 para luego generar condiciones de inicio
                 SCL = 1;                        // Inicia en 1 para luego generar condiciones de inicio
+                nx_count_bit_total = 0; 
                 nx_count_bit_each = 0; 
                 if (!RNW && START_STB) begin    // Se preparan las cosas para Escritura
                     nx_inter_data_out = {I2C_ADDR, RNW}; // Se cargan los datos en el registro interno (1 byte)
@@ -128,11 +129,12 @@ module transmitter_I2C(
             end
 
             WRITE: begin 
-
+                SDA_OE = 1;                  // Activa el Output Enable /// Ver si sirve dejarlo acá en la jerarquía o arriba
+                nx_SDA_OUT = 0;              // Se pone en bajo para generar condiciones de inicio      
                 if (SCL && negedge_SDA_out)begin // Si se cumplen las condiciones de inicio
                     SCL = div_freq[DIV_FREQ-1];  // Inicia  oscilación de SCL
-                    SDA_OUT = 0;                 // Baja para iniciar a enviar el primer byte
-                    SDA_OE = 1;                  // Activa el Output Enable
+                    nx_SDA_OUT = 0;                 // Baja para iniciar a enviar el primer byte
+                    // Acá iba el SDA_OE
                     if (posedge_SCL && count_bit_total < 9) begin // Para el byte de Adress+RNW;
                         nx_count_bit_each = count_bit_each +1;
                         nx_count_bit_total = count_bit_total+1;
@@ -150,21 +152,52 @@ module transmitter_I2C(
                     else if (count_bit_total >= 16 && count_bit_total <25)begin // Para el segundo byte de WR_DATA
                         nx_inter_data_out = WR_DATA[7:0];  // Carga el segundo byte de WR_DATA
                         nx_count_bit_each = 0;             // reinicia el contador de bits a cero
-                        if (posedge_SCL && SDA_IN) begin 
+                        if (posedge_SCL && SDA_IN_ACK) begin 
                             nx_count_bit_each = count_bit_each +1;
                             nx_count_bit_total = count_bit_total+1;
                             nx_SDA_OUT = inter_data_out[7-count_bit_each];
                         end;
                     end
-                    else if (count_bit_total==24) nx_state = FINISH;
+                    else if (count_bit_total==24) begin 
+                        nx_SDA_OUT = 0; // Hace cero para luego en FINISH hacer uno y generar posedge para condicion de parada
+                        nx_state = FINISH; 
+                    end
                 end
                  
             end
 
             READ: begin
-            
+                SDA_OE = 1;                  // Activa el Output Enable /// Ver si sirve dejarlo acá en la jerarquía o arriba
+                nx_SDA_OUT = 0;              // Se pone en bajo para generar condiciones de inicio      
+                if (SCL && negedge_SDA_out)begin // Si se cumplen las condiciones de inicio
+                    SCL = div_freq[DIV_FREQ-1];  // Inicia  oscilación de SCL
+                    SDA_OUT = 0;                 // Baja para iniciar a enviar el primer byte
+                    // Acá iba el SDA_OE
+                    if (posedge_SCL && count_bit_total < 9) begin // Para el byte de Adress+RNW;
+                        nx_count_bit_each = count_bit_each +1;
+                        nx_count_bit_total = count_bit_total+1;
+                        nx_SDA_OUT = inter_data_out[7-count_bit_each]; // Va a ir enviando bit por bit desde el 0 hasta el 7
+                    end
+                    if (posedge_SCL && SDA_IN_ACK && count_bit_total > 8 && count_bit_total < 17) begin // Se recibe ACK considerando que se confirmó la dirección
+                        SDA_OE = 0; // A partir de acá toma el control el receptor
+                        nx_inter_data_in = {inter_data_in[15:1], SDA_IN};
+                        nx_count_bit_total = count_bit_total+1;
+                    end
+                    if (count_bit_total == 16)begin 
+                        nx_SDA_OUT = 0; // Hace cero para luego en FINISH hacer uno y generar posedge para condicion de parada
+                        nx_state = FINISH; 
+                    end
+                end 
             end
 
+            FINISH: begin 
+                // Generar condición de parada
+                SCL = 1; // Pone en alto SCL para la condición de parada
+                nx_SDA_OUT = 1; // Se pone en alto para generar condición de parada
+                if (SCL && posedge_SDA_out) begin 
+                    nx_state = IDLE;
+                end
+            end
 
         endcase
 
