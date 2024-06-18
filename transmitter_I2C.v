@@ -139,12 +139,12 @@ module transmitter_I2C(
                     if (posedge_SCL && count_bit_total < 9) begin // Para el byte de Adress+RNW;
                         nx_count_bit_each = count_bit_each +1;
                         nx_count_bit_total = count_bit_total+1;
-                        nx_SDA_OUT = inter_data_out[7-count_bit_each]; // Va a ir enviando bit por bit desde el 0 hasta el 7
+                        nx_SDA_OUT = inter_data_out[7-count_bit_each]; // Va a ir enviando bit por bit desde el 7 hasta el 0
                     end
                     else if (count_bit_total >= 8 && count_bit_total <17) begin // Para el primer byte de WR_DATA
                         nx_inter_data_out = WR_DATA[15:8]; // Carga el primer byte de WR_DATA
                         nx_count_bit_each = 0;             // reinicia el contador de bits a cero
-                        if (posedge_SCL && SDA_IN_ACK) begin 
+                        if (posedge_SCL && SDA_IN_ACK && count_bit_each <8) begin // Hasta llegar al bit 0 (7-7)
                             nx_count_bit_each = count_bit_each +1;
                             nx_count_bit_total = count_bit_total+1;
                             nx_SDA_OUT = inter_data_out[7-count_bit_each];
@@ -153,7 +153,7 @@ module transmitter_I2C(
                     else if (count_bit_total >= 16 && count_bit_total <25)begin // Para el segundo byte de WR_DATA
                         nx_inter_data_out = WR_DATA[7:0];  // Carga el segundo byte de WR_DATA
                         nx_count_bit_each = 0;             // reinicia el contador de bits a cero
-                        if (posedge_SCL && SDA_IN_ACK) begin 
+                        if (posedge_SCL && SDA_IN_ACK && count_bit_each <8) begin // Hasta llegar al bit 0 (7-7)
                             nx_count_bit_each = count_bit_each +1;
                             nx_count_bit_total = count_bit_total+1;
                             nx_SDA_OUT = inter_data_out[7-count_bit_each];
@@ -181,7 +181,7 @@ module transmitter_I2C(
                     end
                     if (posedge_SCL && SDA_IN_ACK && count_bit_total > 8 && count_bit_total < 17) begin // Se recibe ACK considerando que se confirmó la dirección
                         SDA_OE = 0; // A partir de acá toma el control el receptor
-                        nx_inter_data_in = {inter_data_in[15:1], SDA_IN};
+                        nx_inter_data_in = {inter_data_in[15:1], SDA_IN}; // Coloca el que llega como el más significativo 
                         nx_count_bit_total = count_bit_total+1;
                     end
                     if (count_bit_total == 16)begin 
